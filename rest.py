@@ -8,6 +8,8 @@ app = Flask(__name__)
 swagger_config = {
                     "headers": [],
                     "specs": [{
+                                "endpoint": 'phishing_detection',
+                                "route": '/phishing_detection.json',
                                 "rule_filter": lambda rule: True,
                                 "model_filter": lambda tag: True,
                              }],
@@ -18,9 +20,16 @@ swagger_config = {
 
 swagger = Swagger(app, config=swagger_config)
 
-knn_model = joblib.load('knn_model.pkl')
-rf_model = joblib.load('rf_model.pkl')
-xgb_model = joblib.load('xgb_model.pkl')
+knn_model = joblib.load('models/knn_model.pkl')
+rf_model = joblib.load('models/rf_model.pkl')
+xgb_model = joblib.load('models/xgb_model.pkl')
+
+
+model_dict = {
+    'knn': knn_model,
+    'rf': rf_model,
+    'xgb': xgb_model,
+}
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -29,6 +38,12 @@ def predict():
 
     ---
     parameters:
+      - name: model
+        in: query
+        type: string
+        required: true
+        description: The model to use for prediction
+        enum: ['knn', 'rf', 'xgb']
       - name: data
         in: body
         required: true
@@ -48,12 +63,14 @@ def predict():
                 type: number
     """
     try:
+        model_name = request.args.get('model')
+        if model_name not in model_dict:
+            return jsonify({'error': f'Model {model_name} not found'})
+
+        selected_model = model_dict[model_name]
         data = request.json
-
         input_data = np.array(data).reshape(1, -1)
-
-        prediction = knn_model.predict(input_data)
-
+        prediction = selected_model.predict(input_data)
         prediction_list = prediction.tolist()
 
         return jsonify({'prediction': prediction_list})
