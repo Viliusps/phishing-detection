@@ -23,12 +23,14 @@ swagger = Swagger(app, config=swagger_config)
 knn_model = joblib.load('models/knn_model.pkl')
 rf_model = joblib.load('models/rf_model.pkl')
 xgb_model = joblib.load('models/xgb_model.pkl')
+svm_model = joblib.load('models/svm_model.pkl')
 
 
 model_dict = {
     'knn': knn_model,
     'rf': rf_model,
     'xgb': xgb_model,
+    'svm': svm_model
 }
 
 @app.route('/predict', methods=['POST'])
@@ -43,7 +45,7 @@ def predict():
         type: string
         required: true
         description: The model to use for prediction
-        enum: ['knn', 'rf', 'xgb']
+        enum: ['knn', 'rf', 'xgb', 'svm']
       - name: data
         in: body
         required: true
