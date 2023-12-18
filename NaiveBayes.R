@@ -42,6 +42,16 @@ test_pp.h2o <- test_pp %>%
 
 x_h2o <- setdiff(names(train_pp), y)
 
+nb_model <- h2o.naiveBayes(x = x_h2o, y = y, training_frame = train_pp.h2o)
+predictions <- as.vector(h2o.predict(nb_model, newdata = test_pp.h2o))
+
+
+true_labels <- as.vector(test_pp.h2o$Result)
+
+
+accuracy <- sum(predictions == true_labels) / length(true_labels)
+cat("Accuracy:", accuracy, "\n")
+
 param_grid <- list(
   laplace = seq(0, 5, by = 0.5)
 )
@@ -60,6 +70,7 @@ sorted_grid
 best_h2o_model <- sorted_grid@model_ids[[1]]
 best_model <- h2o.getModel(best_h2o_model)
 
+h2o.saveModel(best_model, path = "./", force = TRUE)
 
 auc <- h2o.auc(best_model, train = TRUE, valid = FALSE)
 cat("AUC-ROC:", auc, "\n")
@@ -146,11 +157,25 @@ importance_values <- numeric(length(features))
 for (i in seq_along(features)) {
   permuted_data <- test_pp
   permuted_data[[features[i]]] <- sample(permuted_data[[features[i]]])
-  y_permuted <- as.factor(h2o.predict(best_model, as.h2o(permuted_data))$predict)
-  accuracy_after_permutation <- confusionMatrix(y_true, y_permuted)$overall["Accuracy"]
+
+  # Make predictions on the permuted data
+  y_permuted <- as.vector(h2o.predict(best_model, as.h2o(permuted_data))$predict)
+
+  # Calculate accuracy after permutation
+  accuracy_after_permutation <- sum(y_permuted == y_true) / length(y_true)
+
+  # Calculate importance value
   importance_values[i] <- accuracy_before_permutation - accuracy_after_permutation
 }
-ranked_features <- features[order(importance_values, decreasing = TRUE)]
-print(ranked_features)
+importance_df <- data.frame(feature = features, importance = importance_values)
+ranked_features <- importance_df[order(importance_values, decreasing = TRUE), ]
 
-h2o.download_pojo(best_model)
+
+importance_df <- data.frame(feature = ranked_features, importance = importance_values)
+
+ggplot(ranked_features, aes(x = reorder(feature, -importance), y = importance)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  labs(title = "Permutation Importance of Features",
+       x = "Features",
+       y = "Importance") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
